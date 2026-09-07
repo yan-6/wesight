@@ -195,6 +195,30 @@ const fileContainsCredential = (filePath: string): boolean => {
   }
 };
 
+// OpenCode stores credentials as {"providerName": {"api": "key"}} or {"providerName": {"token": "..."}},
+// which does not match the generic isCredentialLikeKey patterns ("api" alone is not considered
+// credential-like). This function specifically detects that shape.
+const openCodeAuthJsonLoggedIn = (filePath: string): boolean => {
+  try {
+    if (!fs.existsSync(filePath)) return false;
+    const content = fs.readFileSync(filePath, 'utf8');
+    if (!content.trim()) return false;
+    const parsed = JSON.parse(content);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
+    // Each top-level key is a provider name; the value is a config object.
+    // A provider entry is considered active when it has a non-empty string under
+    // 'api', 'token', 'key', or 'apiKey' — the fields OpenCode uses for auth.
+    return Object.values(parsed as Record<string, unknown>).some((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+      const obj = entry as Record<string, unknown>;
+      return ['api', 'token', 'key', 'apiKey']
+        .some((field) => typeof obj[field] === 'string' && (obj[field] as string).trim().length > 0);
+    });
+  } catch {
+    return false;
+  }
+};
+
 const envContainsCredential = (keys: string[]): string | null => {
   for (const key of keys) {
     if (isNonPlaceholderSecret(process.env[key])) {
@@ -636,6 +660,21 @@ export const summarizeCliAuthStatus = (
       authSource: formatAuthSource(credentialPath),
       authMessage: 'file',
     };
+  }
+
+  // OpenCode uses a non-standard auth.json format ({providerName: {api: "key"}})
+  // that fileContainsCredential does not detect. Check it explicitly.
+  if (appType === 'opencode') {
+    const openCodeAuthPath = config.secondaryConfigPaths.find(
+      (p) => p.endsWith('auth.json') && p.includes('opencode'),
+    );
+    if (openCodeAuthPath && openCodeAuthJsonLoggedIn(openCodeAuthPath)) {
+      return {
+        authStatus: 'logged_in',
+        authSource: formatAuthSource(openCodeAuthPath),
+        authMessage: 'file',
+      };
+    }
   }
 
   const anyConfigFileExists = config.configExists || config.secondaryConfigPaths.some((filePath) => fs.existsSync(filePath));
