@@ -197,8 +197,7 @@ const readJsonObject = (filePath: string): Record<string, unknown> | null => {
     const raw = fs.readFileSync(filePath, 'utf8');
     // Strip single-line (//) and block (/* */) comments for .jsonc files
     const text = filePath.endsWith('.jsonc')
-      ? raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^
-]*/g, '')
+      ? raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
       : raw;
     const parsed = JSON.parse(text);
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
