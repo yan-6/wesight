@@ -99,7 +99,12 @@ export async function downloadUpdate(
   };
 
   try {
-    const response = await session.defaultSession.fetch(url, {
+    // Use a dedicated partition so the proxy override does not affect the default session.
+    // System-proxy mode ensures downloads work for users behind a local proxy (e.g. Clash Verge).
+    const updateSession = session.fromPartition('persist:wesight-update-download');
+    await updateSession.setProxy({ mode: 'system' });
+    console.log('[AppUpdate] Download session proxy set to system mode');
+    const response = await updateSession.fetch(url, {
       signal: controller.signal,
     });
 
