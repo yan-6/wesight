@@ -195,28 +195,39 @@ const fileContainsCredential = (filePath: string): boolean => {
   }
 };
 
-// OpenCode stores credentials as {"providerName": {"api": "key"}} or {"providerName": {"token": "..."}},
-// which does not match the generic isCredentialLikeKey patterns ("api" alone is not considered
-// credential-like). This function specifically detects that shape.
-const openCodeAuthJsonLoggedIn = (filePath: string): boolean => {
-  try {
-    if (!fs.existsSync(filePath)) return false;
-    const content = fs.readFileSync(filePath, 'utf8');
-    if (!content.trim()) return false;
-    const parsed = JSON.parse(content);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
-    // Each top-level key is a provider name; the value is a config object.
-    // A provider entry is considered active when it has a non-empty string under
-    // 'api', 'token', 'key', or 'apiKey' — the fields OpenCode uses for auth.
-    return Object.values(parsed as Record<string, unknown>).some((entry) => {
-      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
-      const obj = entry as Record<string, unknown>;
-      return ['api', 'token', 'key', 'apiKey']
-        .some((field) => typeof obj[field] === 'string' && (obj[field] as string).trim().length > 0);
-    });
-  } catch {
-    return false;
+// OpenCode stores credentials in ~/.local/share/opencode/auth.json as a map of
+// provider ID to a discriminated union (see OpenCode's Auth.Info schema):
+//   { "deepseek": { "type": "api", "key": "sk-..." } }
+//   { "anthropic": { "type": "oauth", "refresh": "...", "access": "...", "expires": 0 } }
+//   { "acme": { "type": "wellknown", "key": "...", "token": "..." } }
+// None of these shapes match the generic isCredentialLikeKey patterns, because
+// "key", "api", "access", and "refresh" are not credential-like on their own.
+// So OpenCode needs its own schema-aware check.
+export const openCodeAuthEntryLoggedIn = (entry: unknown): boolean => {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+  const obj = entry as Record<string, unknown>;
+  const hasValue = (field: string): boolean => isNonPlaceholderSecret(obj[field]);
+
+  switch (obj.type) {
+    case 'api':
+      return hasValue('key');
+    case 'oauth':
+      // An OAuth login is usable while it still holds a refresh token; the access
+      // token alone is enough for a session that has not expired yet.
+      return hasValue('refresh') || hasValue('access');
+    case 'wellknown':
+      return hasValue('key') || hasValue('token');
+    default:
+      // Tolerate older or future OpenCode formats that omit the discriminator.
+      return ['api', 'key', 'apiKey', 'token', 'access', 'refresh']
+        .some((field) => hasValue(field));
   }
+};
+
+const openCodeAuthJsonLoggedIn = (filePath: string): boolean => {
+  const parsed = readJsonObject(filePath);
+  if (!parsed) return false;
+  return Object.values(parsed).some((entry) => openCodeAuthEntryLoggedIn(entry));
 };
 
 const envContainsCredential = (keys: string[]): string | null => {
@@ -570,7 +581,9 @@ const localEnvKeysByAppType: Record<CliAppType, string[]> = {
   codex: ['OPENAI_API_KEY'],
   hermes: ['HERMES_INFERENCE_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GLM_API_KEY', 'ZAI_API_KEY', 'Z_AI_API_KEY'],
   openclaw: ['OPENCLAW_GATEWAY_TOKEN', 'OPENAI_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_API_KEY'],
-  opencode: ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'],
+  // OpenCode resolves credentials for any Models.dev provider, so accept the
+  // common provider env keys rather than just the OpenAI/Anthropic pair.
+  opencode: ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'DEEPSEEK_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'OPENROUTER_API_KEY', 'DASHSCOPE_API_KEY', 'QWEN_API_KEY', 'MOONSHOT_API_KEY', 'ZAI_API_KEY', 'Z_AI_API_KEY', 'GROQ_API_KEY', 'XAI_API_KEY'],
   grok: ['GROK_API_KEY', 'XAI_API_KEY', 'X_AI_API_KEY'],
   qwen: ['DASHSCOPE_API_KEY', 'QWEN_API_KEY'],
   deepseek_tui: ['DEEPSEEK_API_KEY', 'OPENAI_API_KEY'],
@@ -662,13 +675,15 @@ export const summarizeCliAuthStatus = (
     };
   }
 
-  // OpenCode uses a non-standard auth.json format ({providerName: {api: "key"}})
-  // that fileContainsCredential does not detect. Check it explicitly.
+  // OpenCode's auth.json uses a provider-keyed discriminated union that
+  // fileContainsCredential cannot recognise, so check it with a schema-aware pass.
+  // Scan every candidate ending in auth.json, since the data-dir location can be
+  // overridden and is not guaranteed to be the secondaryConfigPaths entry.
   if (appType === 'opencode') {
-    const openCodeAuthPath = config.secondaryConfigPaths.find(
-      (p) => p.endsWith('auth.json') && p.includes('opencode'),
+    const openCodeAuthPath = candidates.find(
+      (filePath) => filePath.endsWith('auth.json') && openCodeAuthJsonLoggedIn(filePath),
     );
-    if (openCodeAuthPath && openCodeAuthJsonLoggedIn(openCodeAuthPath)) {
+    if (openCodeAuthPath) {
       return {
         authStatus: 'logged_in',
         authSource: formatAuthSource(openCodeAuthPath),
