@@ -23,6 +23,7 @@ import {
   parseHermesConfigText,
   parseHermesDotenvText,
 } from './hermesConfig';
+import { readJsonOrJsoncObject } from './jsoncUtil';
 import { readOpenClawGlobalConfig, summarizeOpenClawConfig } from './openclawSystemRuntime';
 import { getWesightLarkCliBinDir } from './wesightSharedRuntime';
 
@@ -126,17 +127,9 @@ const homeDir = (): string => os.homedir();
 
 const ccSwitchAppDir = (): string => path.join(homeDir(), '.cc-switch');
 
-const readJsonObject = (filePath: string): Record<string, unknown> | null => {
-  try {
-    if (!fs.existsSync(filePath)) return null;
-    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
-      : null;
-  } catch {
-    return null;
-  }
-};
+// Reads .json and .jsonc alike: OpenCode's primary config may be opencode.jsonc,
+// which JSON.parse cannot handle without comment stripping.
+const readJsonObject = readJsonOrJsoncObject;
 
 const isNonPlaceholderSecret = (value: unknown): boolean => {
   if (typeof value !== 'string') return false;

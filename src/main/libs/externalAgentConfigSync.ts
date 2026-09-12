@@ -30,6 +30,7 @@ import {
   parseHermesDotenvText,
   summarizeHermesSettingsConfig,
 } from './hermesConfig';
+import { readJsonOrJsoncObject } from './jsoncUtil';
 import {
   DEFAULT_OPENCODE_MODEL,
   mergeOpenCodeConfigForWesightModel,
@@ -216,17 +217,9 @@ export const writeJsonObjectWithBackupIfChanged = (filePath: string, value: Reco
   return writeTextFileWithBackupIfChanged(filePath, `${JSON.stringify(value, null, 2)}\n`);
 };
 
-const readJsonObject = (filePath: string): Record<string, unknown> | null => {
-  try {
-    if (!fs.existsSync(filePath)) return null;
-    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
-      : null;
-  } catch {
-    return null;
-  }
-};
+// Reads .json and .jsonc alike: getCliConfigPaths('opencode') may point at
+// opencode.jsonc, which JSON.parse cannot handle without comment stripping.
+const readJsonObject = readJsonOrJsoncObject;
 
 const writeJsonObject = (filePath: string, value: Record<string, unknown>): void => {
   atomicWrite(filePath, `${JSON.stringify(value, null, 2)}\n`);

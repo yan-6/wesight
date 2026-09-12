@@ -44,6 +44,7 @@ import {
   settingsConfigFromHermesRecord,
   summarizeHermesSettingsConfig,
 } from './hermesConfig';
+import { readJsonOrJsoncObject, stripJsonComments } from './jsoncUtil';
 import {
   DEFAULT_OPENCODE_MODEL,
   listOpenCodeModelProviders,
@@ -191,73 +192,8 @@ const DEFAULT_KIMI_CODE_LOCAL_MODEL = 'local-kimi-code';
 
 const homeDir = (): string => os.homedir();
 
-// Strips // line comments, /* */ block comments, and trailing commas from JSONC text.
-// Implemented as a single-pass scanner rather than a regex so that comment-like
-// sequences inside string values (e.g. "https://api.example.com") are preserved.
-export const stripJsonComments = (input: string): string => {
-  let out = '';
-  let inString = false;
-  let escaped = false;
-  let i = 0;
 
-  while (i < input.length) {
-    const char = input[i];
-    const next = input[i + 1];
-
-    if (inString) {
-      out += char;
-      if (escaped) {
-        escaped = false;
-      } else if (char === '\\') {
-        escaped = true;
-      } else if (char === '"') {
-        inString = false;
-      }
-      i += 1;
-      continue;
-    }
-
-    if (char === '"') {
-      inString = true;
-      out += char;
-      i += 1;
-      continue;
-    }
-
-    if (char === '/' && next === '/') {
-      while (i < input.length && input[i] !== '\n') i += 1;
-      continue;
-    }
-
-    if (char === '/' && next === '*') {
-      i += 2;
-      while (i < input.length && !(input[i] === '*' && input[i + 1] === '/')) i += 1;
-      i += 2;
-      continue;
-    }
-
-    out += char;
-    i += 1;
-  }
-
-  // Remove trailing commas before } or ], which JSONC permits but JSON.parse rejects.
-  return out.replace(/,(\s*[}\]])/g, '$1');
-};
-
-const readJsonObject = (filePath: string): Record<string, unknown> | null => {
-  try {
-    if (!fs.existsSync(filePath)) return null;
-    const raw = fs.readFileSync(filePath, 'utf8');
-    // OpenCode and other tools use .jsonc, which allows comments and trailing commas.
-    const text = filePath.endsWith('.jsonc') ? stripJsonComments(raw) : raw;
-    const parsed = JSON.parse(text);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
-      : null;
-  } catch {
-    return null;
-  }
-};
+const readJsonObject = readJsonOrJsoncObject;
 
 const normalizePathSetting = (value: unknown): string | null => {
   if (typeof value !== 'string') return null;
@@ -1822,3 +1758,5 @@ export class ExternalAgentProviderStore {
     );
   }
 }
+
+export { stripJsonComments };
