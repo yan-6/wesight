@@ -1,5 +1,5 @@
 import { exec, spawn } from 'child_process';
-import { app, session } from 'electron';
+import { app, type Session,session } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { Readable } from 'stream';
@@ -46,6 +46,41 @@ const PROGRESS_THROTTLE_MS = 200;
 
 /** Abort download if no data received for this duration (ms). */
 const DOWNLOAD_INACTIVITY_TIMEOUT_MS = 60_000;
+
+/**
+ * Partition for the dedicated update-download session.
+ *
+ * Deliberately NOT prefixed with `persist:`: a persistent partition would be
+ * backed by an on-disk store under userData, and installer payloads are
+ * hundreds of MB. Combined with `cache: false` this keeps update traffic out
+ * of both the persistent partition store and the HTTP cache.
+ */
+const UPDATE_DOWNLOAD_PARTITION = 'wesight-update-download';
+
+/**
+ * Build the session used to download app updates.
+ *
+ * Update downloads must not run on `session.defaultSession`: that session is
+ * pinned to `direct` mode whenever the "use system proxy" preference is off
+ * (which is the default), so downloads hang for users whose only route to the
+ * release host is a local proxy such as Clash Verge (issue #73).
+ *
+ * A dedicated session lets us opt this one code path into system-proxy
+ * resolution without mutating the proxy configuration the rest of the app
+ * relies on.
+ */
+export async function prepareUpdateDownloadSession(): Promise<Session> {
+  const updateSession = session.fromPartition(UPDATE_DOWNLOAD_PARTITION, { cache: false });
+  try {
+    await updateSession.setProxy({ mode: 'system' });
+    console.log('[AppUpdate] Download session proxy set to system mode');
+  } catch (proxyError) {
+    // Failing to configure the proxy should not abort the download: the request
+    // may still succeed on a direct route. Log and continue.
+    console.error('[AppUpdate] Failed to set system proxy on download session:', proxyError);
+  }
+  return updateSession;
+}
 
 const EXPECTED_MAC_APP_BUNDLE = 'WeSight.app';
 const EXPECTED_MAC_BUNDLE_IDENTIFIER = 'ai.wesight.app';
@@ -99,11 +134,7 @@ export async function downloadUpdate(
   };
 
   try {
-    // Use a dedicated partition so the proxy override does not affect the default session.
-    // System-proxy mode ensures downloads work for users behind a local proxy (e.g. Clash Verge).
-    const updateSession = session.fromPartition('persist:wesight-update-download');
-    await updateSession.setProxy({ mode: 'system' });
-    console.log('[AppUpdate] Download session proxy set to system mode');
+    const updateSession = await prepareUpdateDownloadSession();
     const response = await updateSession.fetch(url, {
       signal: controller.signal,
     });
