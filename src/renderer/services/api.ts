@@ -1,4 +1,4 @@
-import { resolveCodingPlanBaseUrl } from '../../shared/providers';
+import { ApiFormat, ProviderName, ProviderRegistry, resolveCodingPlanBaseUrl } from '../../shared/providers';
 import { TokenDanceError } from '../../shared/tokendance/constants';
 import { store } from '../store';
 import { ChatMessagePayload, ChatUserMessageInput, ImageAttachment } from '../types/chat';
@@ -253,7 +253,7 @@ class ApiService {
     if (
       normalizedHint
       && (
-        ['openai', 'deepseek', 'moonshot', 'zhipu', 'minimax', 'youdaozhiyun', 'qwen', 'openrouter', 'gemini', 'anthropic', 'xiaomi', 'stepfun', 'volcengine', 'github-copilot', 'ollama'].includes(normalizedHint)
+        ProviderRegistry.get(normalizedHint)
         || normalizedHint.startsWith('custom_')
       )
     ) {
@@ -294,7 +294,7 @@ class ApiService {
       const providerConfig = appConfig.providers[provider];
       if (providerConfig.enabled && (providerConfig.apiKey || !this.providerRequiresApiKey(provider))) {
         let baseUrl = providerConfig.baseUrl;
-        let apiFormat = this.normalizeApiFormat(providerConfig.apiFormat);
+        let apiFormat = provider === ProviderName.OpenLux ? ApiFormat.OpenAI : this.normalizeApiFormat(providerConfig.apiFormat);
 
         if (providerConfig.codingPlanEnabled && (apiFormat === 'anthropic' || apiFormat === 'openai')) {
           const resolved = resolveCodingPlanBaseUrl(provider, true, apiFormat, baseUrl);
