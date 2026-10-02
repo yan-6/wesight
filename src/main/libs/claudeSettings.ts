@@ -1,7 +1,7 @@
 import { app } from 'electron';
 import { join } from 'path';
 
-import { ProviderName, ProviderRegistry, resolveCodingPlanBaseUrl } from '../../shared/providers';
+import { ApiFormat, ProviderName, ProviderRegistry, resolveCodingPlanBaseUrl } from '../../shared/providers';
 import { TokenDance, TokenDanceError } from '../../shared/tokendance/constants';
 import { t } from '../i18n';
 import type { SqliteStore } from '../sqliteStore';
@@ -140,6 +140,7 @@ type MatchedProvider = {
 };
 
 function getEffectiveProviderApiFormat(providerName: string, apiFormat: unknown): AnthropicApiFormat {
+  if (providerName === ProviderName.OpenLux) return ApiFormat.OpenAI;
   if (providerName === ProviderName.OpenAI || providerName === ProviderName.Gemini || providerName === ProviderName.StepFun || providerName === ProviderName.Youdaozhiyun || providerName === ProviderName.Copilot) {
     return 'openai';
   }
