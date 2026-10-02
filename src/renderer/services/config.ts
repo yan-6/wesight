@@ -1,4 +1,5 @@
 import { normalizePetConfig } from '@shared/pet/constants';
+import { ApiFormat, ProviderName } from '@shared/providers';
 
 import { TokenDance } from '../../shared/tokendance/constants';
 import { AppConfig, CONFIG_KEYS, defaultConfig, isCustomProvider } from '../config';
@@ -6,6 +7,7 @@ import { normalizeThemeSkinState } from '../theme/skin/config';
 import { localStore } from './store';
 
 const getFixedProviderApiFormat = (providerKey: string): 'anthropic' | 'openai' | 'gemini' | null => {
+  if (providerKey === ProviderName.OpenLux) return ApiFormat.OpenAI;
   if (providerKey === TokenDance.Provider || providerKey === 'openai' || providerKey === 'stepfun' || providerKey === 'youdaozhiyun' || providerKey === 'github-copilot') {
     return 'openai';
   }

@@ -3,6 +3,94 @@
   "windowsUnsignedNotice": "Windows x64 安装包当前尚未签名。安装时，Microsoft Defender SmartScreen 可能显示“Windows 已保护你的电脑”，请确认安装包来自 WeSight 官方 GitHub Release 后继续安装。",
   "releases": [
     {
+      "version": "1.0.9",
+      "date": "2026-10-01",
+      "title": "OpenLux 接入与模型分类选择",
+      "summary": "新增 OpenLux 模型供应商与模型原厂分类，统一设置页和 Chat 的搜索、选择及默认模型管理体验。",
+      "compareUrl": "https://github.com/freestylefly/wesight/compare/v1.0.8...v1.0.9",
+      "releaseUrl": "https://github.com/freestylefly/wesight/releases/tag/v1.0.9",
+      "sections": [
+        {
+          "kind": "feature",
+          "title": "新增",
+          "items": [
+            {
+              "text": "新增 OpenLux 模型供应商，位于 TokenDance 后，支持 API Key、账号模型列表刷新、连接测试和默认模型选择。",
+              "areas": [
+                "desktop"
+              ]
+            },
+            {
+              "text": "OpenLux 模型列表按 OpenAI、Google、Anthropic 等模型原厂分类，支持名称与模型 ID 搜索、编辑和手动添加。",
+              "areas": [
+                "desktop"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "improvement",
+          "title": "变更",
+          "items": [
+            {
+              "text": "Chat 模型选择器整合供应商与模型列表，显示 OpenLux 模型来源，并沿用现有主题、圆角和交互风格。",
+              "areas": [
+                "desktop"
+              ]
+            },
+            {
+              "text": "完善上下展开、窄窗口布局、键盘操作与中英文显示，保留旧配置、手动添加模型和其他供应商的选择方式。",
+              "areas": [
+                "desktop"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "fix",
+          "title": "修复",
+          "items": [
+            {
+              "text": "使用供应商与模型 ID 共同确定模型身份，确保 OpenLux 同名模型通过对应账号和 OpenAI 兼容接口调用。",
+              "areas": [
+                "desktop"
+              ]
+            },
+            {
+              "text": "保存、重载及导入导出模型配置时保留模型分类、图像能力与默认模型选择。",
+              "areas": [
+                "desktop"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "improvement",
+          "title": "已知问题",
+          "items": [
+            {
+              "text": "OpenLux 真实账号与付费推理尚未验收；请填写自己的 API Key，刷新账号模型列表后进行连接测试。",
+              "areas": [
+                "desktop"
+              ]
+            },
+            {
+              "text": "部分本地开发环境的任务看板后台服务启动仍有 stdio 错误；可查看 taskboard.log 排查，当前模型设置页正常。",
+              "areas": [
+                "desktop"
+              ]
+            },
+            {
+              "text": "现有 ESLint 警告与主界面 bundle 体积问题仍待后续处理。",
+              "areas": [
+                "release"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.0.8",
       "date": "2026-09-20",
       "title": "TokenDance 模型接入与观猹登录",

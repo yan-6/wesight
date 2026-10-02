@@ -18,6 +18,7 @@ import type {
   ExternalAgentProviderAppType,
   ExternalAgentProviderListResult,
 } from '../../types/cowork';
+import { ModelSelectorEvent } from '../models/constants';
 import ModelSelector from '../ModelSelector';
 
 interface CoworkModelSelectorProps {
@@ -193,9 +194,9 @@ const CoworkModelSelector: React.FC<CoworkModelSelectorProps> = ({
     const handleOpenModelSelector = () => {
       setIsOpen(true);
     };
-    window.addEventListener('cowork:open-model-selector', handleOpenModelSelector);
+    window.addEventListener(ModelSelectorEvent.Open, handleOpenModelSelector);
     return () => {
-      window.removeEventListener('cowork:open-model-selector', handleOpenModelSelector);
+      window.removeEventListener(ModelSelectorEvent.Open, handleOpenModelSelector);
     };
   }, [appType]);
 
