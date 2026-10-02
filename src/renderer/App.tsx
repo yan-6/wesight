@@ -9,6 +9,7 @@ import AgentSetupWizard from './components/cowork/AgentSetupWizard';
 import CoworkPermissionModal from './components/cowork/CoworkPermissionModal';
 import CoworkQuestionWizard from './components/cowork/CoworkQuestionWizard';
 import EngineStartupOverlay from './components/cowork/EngineStartupOverlay';
+import { ModelSelectorEvent } from './components/models/constants';
 import PrivacyDialog from './components/PrivacyDialog';
 import RuntimeDashboardView from './components/runtime/RuntimeDashboardView';
 import Settings, { type SettingsOpenOptions } from './components/Settings';
@@ -139,17 +140,18 @@ const App: React.FC = () => {
         apiService.setConfig(apiConfig);
 
         // 从 providers 配置中加载可用模型列表到 Redux
-        const providerModels: { id: string; name: string; provider?: string; providerKey?: string; supportsImage?: boolean }[] = [];
+        const providerModels: { id: string; name: string; provider?: string; providerKey?: string; supportsImage?: boolean; modelVendor?: string }[] = [];
         if (config.providers) {
           Object.entries(config.providers).forEach(([providerName, providerConfig]) => {
             if (providerConfig.enabled && providerConfig.models) {
-              providerConfig.models.forEach((model: { id: string; name: string; supportsImage?: boolean }) => {
+              providerConfig.models.forEach((model: { id: string; name: string; supportsImage?: boolean; modelVendor?: string }) => {
                 providerModels.push({
                   id: model.id,
                   name: model.name,
                   provider: getProviderDisplayName(providerName, providerConfig),
                   providerKey: providerName,
                   supportsImage: model.supportsImage ?? false,
+                  modelVendor: model.modelVendor,
                 });
               });
             }
@@ -286,6 +288,12 @@ const App: React.FC = () => {
     });
     setShowSettings(true);
   }, []);
+
+  useEffect(() => {
+    const manageProviders = () => handleShowSettings({ initialTab: SettingsTab.Model });
+    window.addEventListener(ModelSelectorEvent.ManageProviders, manageProviders);
+    return () => window.removeEventListener(ModelSelectorEvent.ManageProviders, manageProviders);
+  }, [handleShowSettings]);
 
   const handleShowSkills = useCallback(() => {
     setMainView('skills');
@@ -485,16 +493,17 @@ const App: React.FC = () => {
     });
 
     if (config.providers) {
-      const allModels: { id: string; name: string; provider?: string; providerKey?: string; supportsImage?: boolean }[] = [];
+      const allModels: { id: string; name: string; provider?: string; providerKey?: string; supportsImage?: boolean; modelVendor?: string }[] = [];
       Object.entries(config.providers).forEach(([providerName, providerConfig]) => {
         if (providerConfig.enabled && providerConfig.models) {
-          providerConfig.models.forEach((model: { id: string; name: string; supportsImage?: boolean }) => {
+          providerConfig.models.forEach((model: { id: string; name: string; supportsImage?: boolean; modelVendor?: string }) => {
             allModels.push({
               id: model.id,
               name: model.name,
               provider: getProviderDisplayName(providerName, providerConfig),
               providerKey: providerName,
               supportsImage: model.supportsImage ?? false,
+              modelVendor: model.modelVendor,
             });
           });
         }

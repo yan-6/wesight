@@ -1,13 +1,38 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { ProviderName } from '../../shared/providers';
-import { resolveCodexWesightApiConfig, resolveCurrentApiConfig, setStoreGetter } from './claudeSettings';
+import { OpenLux } from '../../shared/openlux/constants';
+import { ApiFormat, ProviderName } from '../../shared/providers';
+import { resolveCodexWesightApiConfig, resolveCurrentApiConfig, resolveRawApiConfig, setStoreGetter } from './claudeSettings';
 import * as coworkOpenAICompatProxy from './coworkOpenAICompatProxy';
 
 describe('resolveCurrentApiConfig', () => {
   afterEach(() => {
     setStoreGetter(() => null);
     vi.restoreAllMocks();
+  });
+
+  test('routes same-name relay models through OpenLux for raw, Claude and Codex engines', () => {
+    const configureProxy = vi.spyOn(coworkOpenAICompatProxy, 'configureCoworkOpenAICompatProxy').mockImplementation(() => {});
+    vi.spyOn(coworkOpenAICompatProxy, 'getCoworkOpenAICompatProxyStatus').mockReturnValue({
+      running: true, baseURL: 'http://127.0.0.1:12345/v1', hasUpstream: false,
+      upstreamBaseURL: null, upstreamModel: null, lastError: null,
+    });
+    vi.spyOn(coworkOpenAICompatProxy, 'getCoworkOpenAICompatProxyBaseURL').mockReturnValue('http://127.0.0.1:12345/v1');
+    setStoreGetter(() => ({ get: () => ({
+      model: { defaultModel: 'gpt-4o', defaultModelProvider: ProviderName.OpenAI },
+      providers: {
+        [ProviderName.OpenAI]: { enabled: true, apiKey: 'direct-key', baseUrl: 'https://api.openai.com/v1', apiFormat: ApiFormat.OpenAI, models: [{ id: 'gpt-4o' }] },
+        [ProviderName.OpenLux]: { enabled: true, apiKey: 'relay-key', baseUrl: OpenLux.BaseUrl, apiFormat: ApiFormat.Anthropic, models: [{ id: 'gpt-4o', name: 'GPT-4o', supportsImage: true }] },
+      },
+    }) }) as never);
+    const override = { providerName: ProviderName.OpenLux, modelId: 'gpt-4o' };
+    expect(resolveRawApiConfig(override).config).toMatchObject({ baseURL: OpenLux.BaseUrl, apiKey: 'relay-key', apiType: ApiFormat.OpenAI });
+    for (const resolve of [resolveCurrentApiConfig, resolveCodexWesightApiConfig]) {
+      const result = resolve('local', override);
+      expect(result.error).toBeUndefined();
+      expect(result.config).toMatchObject({ baseURL: 'http://127.0.0.1:12345/v1', model: 'gpt-4o' });
+      expect(configureProxy).toHaveBeenLastCalledWith({ baseURL: OpenLux.BaseUrl, apiKey: 'relay-key', model: 'gpt-4o', provider: ProviderName.OpenLux });
+    }
   });
 
   test('uses the Zhipu Anthropic coding endpoint directly when Anthropic format is selected', () => {
