@@ -10,6 +10,7 @@ export interface Model {
   supportsImage?: boolean;
   isServerModel?: boolean; // 是否为服务端套餐模型
   serverApiFormat?: string; // 服务端模型的 API 格式 ("openai" | "anthropic")
+  modelVendor?: string; // 模型原厂，不影响 providerKey 路由
 }
 
 export function getModelIdentityKey(model: Pick<Model, 'id' | 'providerKey'>): string {
@@ -43,6 +44,7 @@ function buildInitialModels(): Model[] {
             provider: getProviderDisplayName(providerName, config),
             providerKey: providerName,
             supportsImage: model.supportsImage ?? false,
+            modelVendor: model.modelVendor,
           });
         });
       }

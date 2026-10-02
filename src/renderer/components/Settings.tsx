@@ -33,7 +33,9 @@ import {
 import React, { useCallback,useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { ProviderRegistry, resolveCodingPlanBaseUrl } from '../../shared/providers';
+import { mergeCatalogModels, parseOpenLuxCatalog } from '../../shared/models/catalog';
+import { OpenLux } from '../../shared/openlux/constants';
+import { ApiFormat, ProviderName, ProviderRegistry, resolveCodingPlanBaseUrl } from '../../shared/providers';
 import { TokenDance } from '../../shared/tokendance/constants';
 import { type AppConfig, defaultConfig, getCustomProviderDefaultName,getProviderDisplayName,getVisibleProviders, isCustomProvider } from '../config';
 import { APP_ID, EXPORT_FORMAT_TYPE, EXPORT_PASSWORD } from '../constants/app';
@@ -95,12 +97,14 @@ import {
   YouDaoZhiYunIcon,
   ZhipuIcon,
 } from './icons/providers';
+import OpenLuxIcon from './icons/providers/OpenLuxIcon';
 import TrashIcon from './icons/TrashIcon';
 import IMSettings from './im/IMSettings';
 import McpManager from './mcp/McpManager';
 import PetSprite, { PetMood } from './pet/PetSprite';
 import { ScheduledTasksView } from './scheduledTasks';
 import { SettingsTab, type SettingsTab as SettingsTabType } from './settings/constants';
+import { OpenLuxModels } from './settings/OpenLuxModels';
 import ThemeSkinSettings from './settings/ThemeSkinSettings';
 import { TokenDanceSettings } from './settings/TokenDanceSettings';
 import EmailSkillConfig from './skills/EmailSkillConfig';
@@ -257,6 +261,7 @@ const CUSTOM_PROVIDER_KEYS = [
 
 const providerKeys = [
   TokenDance.Provider,
+  ProviderName.OpenLux,
   'openai',
   'gemini',
   'anthropic',
@@ -299,6 +304,7 @@ interface ProviderExportEntry {
   baseUrl: string;
   apiFormat?: 'anthropic' | 'openai' | 'gemini';
   codingPlanEnabled?: boolean;
+  defaultModel?: string;
   models?: Model[];
 }
 
@@ -322,6 +328,7 @@ interface ProvidersImportEntry {
   baseUrl?: string;
   apiFormat?: 'anthropic' | 'openai' | 'native';
   codingPlanEnabled?: boolean;
+  defaultModel?: string;
   models?: Model[];
 }
 
@@ -338,6 +345,7 @@ interface ProvidersImportPayload {
 
 const providerMeta: Record<ProviderType, { label: string; icon: React.ReactNode }> = {
   [TokenDance.Provider]: { label: 'TokenDance', icon: <span aria-hidden className="text-lg font-bold text-primary">T</span> },
+  [ProviderName.OpenLux]: { label: 'OpenLux', icon: <OpenLuxIcon /> },
   openai: { label: 'OpenAI', icon: <OpenAIIcon /> },
   deepseek: { label: 'DeepSeek', icon: <DeepSeekIcon /> },
   gemini: { label: 'Google', icon: <GeminiIcon /> },
@@ -360,6 +368,7 @@ const providerMeta: Record<ProviderType, { label: string; icon: React.ReactNode 
 
 const providerLinks: Partial<Record<ProviderType, { website: string; apiKey?: string }>> = {
   [TokenDance.Provider]: { website: TokenDance.Origin },
+  [ProviderName.OpenLux]: { website: OpenLux.Website, apiKey: OpenLux.ConsoleUrl },
   openai:       { website: 'https://platform.openai.com',              apiKey: 'https://platform.openai.com/api-keys' },
   gemini:       { website: 'https://aistudio.google.com',              apiKey: 'https://aistudio.google.com/apikey' },
   anthropic:    { website: 'https://console.anthropic.com',            apiKey: 'https://console.anthropic.com/settings/keys' },
@@ -456,7 +465,7 @@ const copyTextToClipboard = async (text: string): Promise<boolean> => {
 };
 
 const getFixedApiFormatForProvider = (provider: string): 'anthropic' | 'openai' | 'gemini' | null => {
-  if (provider === TokenDance.Provider) return 'openai';
+  if (provider === TokenDance.Provider || provider === ProviderName.OpenLux) return ApiFormat.OpenAI;
   if (provider === 'openai' || provider === 'stepfun') {
     return 'openai';
   }
@@ -742,7 +751,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
 
   // Add state for active provider
   const [activeProvider, setActiveProvider] = useState<ProviderType>(getDefaultActiveProvider());
-  const [tokenDanceDefault, setTokenDanceDefault] = useState<string | null>(null);
+  const [pendingDefaultModel, setPendingDefaultModel] = useState<{ providerKey: string; id: string } | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
 
   // MiniMax OAuth state
@@ -2441,9 +2450,9 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
           key: primaryProvider.apiKey,
           baseUrl: primaryProvider.baseUrl,
         },
-        ...(tokenDanceDefault && normalizedProviders[TokenDance.Provider]?.enabled
-          && normalizedProviders[TokenDance.Provider].models?.some(model => model.id === tokenDanceDefault)
-          ? { model: { ...configService.getConfig().model, defaultModel: tokenDanceDefault, defaultModelProvider: TokenDance.Provider } }
+        ...(pendingDefaultModel && normalizedProviders[pendingDefaultModel.providerKey]?.enabled
+          && normalizedProviders[pendingDefaultModel.providerKey].models?.some(model => model.id === pendingDefaultModel.id)
+          ? { model: { ...configService.getConfig().model, defaultModel: pendingDefaultModel.id, defaultModelProvider: pendingDefaultModel.providerKey } }
           : {}),
         providers: normalizedProviders, // Save all providers configuration
         language,
@@ -2485,7 +2494,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
       });
 
       // 更新 Redux store 中的可用模型列表
-      const allModels: { id: string; name: string; provider?: string; providerKey?: string; supportsImage?: boolean }[] = [];
+      const allModels: { id: string; name: string; provider?: string; providerKey?: string; supportsImage?: boolean; modelVendor?: string }[] = [];
       Object.entries(normalizedProviders).forEach(([providerName, config]) => {
         if (config.enabled && config.models) {
           config.models.forEach(model => {
@@ -2495,13 +2504,14 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
               provider: getProviderDisplayName(providerName, config),
               providerKey: providerName,
               supportsImage: model.supportsImage ?? false,
+              modelVendor: model.modelVendor,
             });
           });
         }
       });
       dispatch(setAvailableModels(allModels));
-      if (tokenDanceDefault) {
-        const selected = allModels.find(model => model.providerKey === TokenDance.Provider && model.id === tokenDanceDefault);
+      if (pendingDefaultModel) {
+        const selected = allModels.find(model => model.providerKey === pendingDefaultModel.providerKey && model.id === pendingDefaultModel.id);
         if (selected) dispatch(setSelectedModel(selected));
       }
 
@@ -2735,6 +2745,23 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
         return;
       }
 
+      if (providerKey === ProviderName.OpenLux) {
+        const fetched = parseOpenLuxCatalog(response.data);
+        if (fetched.length === 0) {
+          alert(i18nService.t('getModelListNoModels'));
+          return;
+        }
+        setProviders(previous => ({
+          ...previous,
+          [providerKey]: {
+            ...previous[providerKey],
+            models: mergeCatalogModels(fetched, previous[providerKey].models ?? []),
+          },
+        }));
+        alert(i18nService.t('getModelListSuccess').replace('{count}', String(fetched.length)));
+        return;
+      }
+
       let modelList: Array<{ id: string; name?: string }> = [];
 
       if (providerKey === 'ollama') {
@@ -2848,9 +2875,11 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
     }
 
     const nextModel = {
+      ...(isEditingModel ? currentModels.find(model => model.id === editingModelId) : {}),
       id: modelId,
       name: modelName,
       supportsImage: newModelSupportsImage,
+      modelVendor: modelId === editingModelId ? currentModels.find(model => model.id === editingModelId)?.modelVendor : undefined,
     };
     const updatedModels = isEditingModel && editingModelId
       ? currentModels.map(model => (model.id === editingModelId ? nextModel : model))
@@ -2925,7 +2954,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
     }
 
     // 获取第一个可用模型 - use a shallow copy to avoid mutating state
-    const originalModel = providerConfig.models?.[0];
+    const originalModel = providerConfig.models?.find(model => model.id === providerConfig.defaultModel) ?? providerConfig.models?.[0];
     if (!originalModel) {
       showTestResultModal({ success: false, message: i18nService.t('noModelsConfigured') }, testingProvider);
       setIsTesting(false);
@@ -3070,6 +3099,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
             apiFormat,
             codingPlanEnabled: (providerConfig as ProviderConfig).codingPlanEnabled,
             models: providerConfig.models,
+            defaultModel: providerConfig.defaultModel,
           },
         ] as const;
       })
@@ -3207,6 +3237,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
           apiFormat: getEffectiveApiFormat(providerKey, providerData.apiFormat ?? providers[providerKey].apiFormat),
           codingPlanEnabled: typeof providerData.codingPlanEnabled === 'boolean' ? providerData.codingPlanEnabled : (providers[providerKey] as ProviderConfig).codingPlanEnabled,
           models: models ?? providers[providerKey].models,
+          defaultModel: typeof providerData.defaultModel === 'string' ? providerData.defaultModel : providers[providerKey].defaultModel,
         };
       }
 
@@ -3285,6 +3316,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
           apiFormat: getEffectiveApiFormat(providerKey, providerData.apiFormat ?? providers[providerKey].apiFormat),
           codingPlanEnabled: typeof providerData.codingPlanEnabled === 'boolean' ? providerData.codingPlanEnabled : (providers[providerKey] as ProviderConfig).codingPlanEnabled,
           models: models ?? providers[providerKey].models,
+          defaultModel: typeof providerData.defaultModel === 'string' ? providerData.defaultModel : providers[providerKey].defaultModel,
         };
       }
 
@@ -6176,10 +6208,14 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
                 <TokenDanceSettings
                   config={providers[TokenDance.Provider]}
                   onChange={patch => setProviders(previous => ({ ...previous, [TokenDance.Provider]: { ...previous[TokenDance.Provider], ...patch } }))}
-                  onMakeDefault={setTokenDanceDefault}
-                  isDefault={tokenDanceDefault === (providers[TokenDance.Provider].defaultModel ?? TokenDance.DefaultModel)}
+                  onMakeDefault={id => setPendingDefaultModel({ providerKey: TokenDance.Provider, id })}
+                  isDefault={pendingDefaultModel?.providerKey === TokenDance.Provider && pendingDefaultModel.id === (providers[TokenDance.Provider].defaultModel ?? TokenDance.DefaultModel)}
                 />
               ) : <>
+              {activeProvider === ProviderName.OpenLux && <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-secondary">
+                <span>{i18nService.t('openluxDescription')}</span>
+                <button type="button" onClick={() => void window.electron.shell.openExternal(OpenLux.DocsUrl)} className="text-primary hover:text-primary-hover">{i18nService.t('openluxDocs')} ↗</button>
+              </div>}
               {/* MiniMax OAuth auth section */}
               {activeProvider === 'minimax' && (
                 <div className="space-y-3">
@@ -6720,6 +6756,10 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
               </div>
               )}
 
+              {activeProvider === ProviderName.OpenLux && <div>
+                <div className="mb-1.5 text-xs font-medium text-foreground">{i18nService.t('apiFormat')}</div>
+                <span className="inline-flex rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-foreground">{i18nService.t('apiFormatOpenAI')}</span>
+              </div>}
               {/* API 格式选择器 */}
               {shouldShowApiFormatSelector(activeProvider) && !(activeProvider === 'minimax' && minimaxIsOAuthMode) && (
                 <div>
@@ -6887,7 +6927,23 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
               </div>
               )}
 
-              <div>
+              {activeProvider === ProviderName.OpenLux ? (() => {
+                const config = providers[ProviderName.OpenLux];
+                const models = config.models ?? [];
+                const selected = config.defaultModel && models.some(model => model.id === config.defaultModel)
+                  ? config.defaultModel : models[0]?.id ?? '';
+                const saved = configService.getConfig().model;
+                const defaultSelection = pendingDefaultModel ?? { providerKey: saved.defaultModelProvider, id: saved.defaultModel };
+                return <OpenLuxModels models={models} selected={selected} enabled={config.enabled} refreshing={isFetchingModels}
+                  isDefault={defaultSelection.providerKey === ProviderName.OpenLux && defaultSelection.id === selected}
+                  onSelect={id => handleProviderConfigChange(ProviderName.OpenLux, 'defaultModel', id)}
+                  onMakeDefault={() => {
+                    handleProviderConfigChange(ProviderName.OpenLux, 'defaultModel', selected);
+                    setPendingDefaultModel({ providerKey: ProviderName.OpenLux, id: selected });
+                  }}
+                  onRefresh={() => void handleFetchModels()} onAdd={handleAddModel}
+                  onEdit={model => handleEditModel(model.id, model.name, model.supportsImage)} onDelete={handleDeleteModel} />;
+              })() : <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <h3 className="text-xs font-medium text-foreground">
                     {i18nService.t('availableModels')}
@@ -6968,7 +7024,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, notice
                     </div>
                   )}
                 </div>
-              </div>
+              </div>}
               </>}
             </div>
           </div>

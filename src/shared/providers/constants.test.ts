@@ -16,9 +16,9 @@ describe('ProviderName constants', () => {
 });
 
 describe('ProviderRegistry', () => {
-  test('providerIds returns 16 providers (no custom)', () => {
+  test('providerIds returns 17 providers (no custom)', () => {
     const ids = ProviderRegistry.providerIds;
-    expect(ids.length).toBe(16);
+    expect(ids.length).toBe(17);
     expect(ids).not.toContain(ProviderName.Custom);
     expect(ids).not.toContain(ProviderName.WesightServer);
   });
@@ -57,9 +57,9 @@ describe('ProviderRegistry', () => {
     expect(china).not.toContain(ProviderName.OpenAI);
   });
 
-  test('idsByRegion global returns 5 providers', () => {
+  test('idsByRegion global returns 6 providers', () => {
     const global = ProviderRegistry.idsByRegion('global');
-    expect(global.length).toBe(5);
+    expect(global.length).toBe(6);
     expect(global).toContain(ProviderName.OpenAI);
     expect(global).toContain(ProviderName.Gemini);
     expect(global).toContain(ProviderName.Anthropic);
@@ -70,9 +70,10 @@ describe('ProviderRegistry', () => {
   test('idsForEnLocale starts with EN_PRIORITY providers in order', () => {
     const en = ProviderRegistry.idsForEnLocale();
     expect(en[0]).toBe(ProviderName.TokenDance);
-    expect(en[1]).toBe(ProviderName.OpenAI);
-    expect(en[2]).toBe(ProviderName.Anthropic);
-    expect(en[3]).toBe(ProviderName.Gemini);
+    expect(en[1]).toBe(ProviderName.OpenLux);
+    expect(en[2]).toBe(ProviderName.OpenAI);
+    expect(en[3]).toBe(ProviderName.Anthropic);
+    expect(en[4]).toBe(ProviderName.Gemini);
   });
 
   test('idsForEnLocale puts ollama at end', () => {

@@ -20,6 +20,7 @@ import { getAgentDisplayName, getAgentSelectIcon } from '../../utils/defaultAgen
 import Modal from '../common/Modal';
 import ComposeIcon from '../icons/ComposeIcon';
 import SidebarToggleIcon from '../icons/SidebarToggleIcon';
+import { ModelSelectorEvent } from '../models/constants';
 import { PromptPanel,QuickActionBar } from '../quick-actions';
 import type { SettingsOpenOptions } from '../Settings';
 import { SettingsTab } from '../settings/constants';
@@ -583,7 +584,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
 
   const openModelSelector = () => {
     window.setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('cowork:open-model-selector'));
+      window.dispatchEvent(new CustomEvent(ModelSelectorEvent.Open));
     }, 0);
   };
 
