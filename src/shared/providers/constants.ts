@@ -1,3 +1,4 @@
+import { OpenLux } from '../openlux/constants';
 import { TOKEN_DANCE_MODELS, TokenDance } from '../tokendance/constants';
 
 /**
@@ -26,6 +27,7 @@ import { TOKEN_DANCE_MODELS, TokenDance } from '../tokendance/constants';
 // providerName identifies the WeSight internal provider (config key).
 export const ProviderName = {
   TokenDance: TokenDance.Provider,
+  OpenLux: 'openlux',
   OpenAI: 'openai',
   Gemini: 'gemini',
   Anthropic: 'anthropic',
@@ -50,6 +52,7 @@ export type ProviderName = typeof ProviderName[keyof typeof ProviderName];
 // OpenClaw gateway provider identifiers. May differ from ProviderName.
 export const OpenClawProviderId = {
   TokenDance: TokenDance.Provider,
+  OpenLux: ProviderName.OpenLux,
   WesightServer: 'wesight-server',
   Moonshot: 'moonshot',
   Google: 'google',
@@ -178,6 +181,17 @@ const PROVIDER_DEFINITIONS = [
     region: 'china',
     enPriority: 0,
     defaultModels: TOKEN_DANCE_MODELS,
+  },
+  {
+    id: ProviderName.OpenLux,
+    openClawProviderId: OpenClawProviderId.OpenLux,
+    defaultBaseUrl: OpenLux.BaseUrl,
+    defaultApiFormat: ApiFormat.OpenAI,
+    codingPlanSupported: false,
+    region: 'global',
+    enPriority: 0,
+    // Fetch the account's actual catalog instead of advertising unverified models.
+    defaultModels: [],
   },
   // ── China ──
   {
@@ -580,7 +594,8 @@ class ProviderRegistryImpl {
       unique.splice(ollamaIdx, 1);
     }
     unique.push(ProviderName.Ollama);
-    return [ProviderName.TokenDance, ...unique.filter(id => id !== ProviderName.TokenDance)];
+    return [ProviderName.TokenDance, ProviderName.OpenLux,
+      ...unique.filter(id => id !== ProviderName.TokenDance && id !== ProviderName.OpenLux)];
   }
 }
 

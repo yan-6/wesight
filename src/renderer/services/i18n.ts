@@ -8,6 +8,23 @@ export type LanguageType = 'zh' | 'en';
 const translations: Record<LanguageType, Record<string, string>> = {
   zh: {
     ...TOKEN_DANCE_TRANSLATIONS.zh,
+    openluxDescription: '一个 API Key，连接多家模型平台',
+    openluxCatalogHint: '填写 API Key 后获取账号可用的对话模型，也可以手动添加模型。',
+    openluxDocs: '接入文档',
+    modelCatalogSearch: '搜索模型名称或 ID',
+    modelCatalogGrouped: '按模型原厂分类',
+    modelCatalogOther: '其他',
+    modelCatalogNoResults: '未找到匹配的模型',
+    modelCatalogDefault: '默认模型',
+    modelCatalogSetDefault: '设为默认',
+    modelCatalogDefaultSelected: '已设为默认',
+    modelCatalogSelect: '选择模型',
+    modelCatalogManage: '管理供应商',
+    modelCatalogRefresh: '刷新列表',
+    modelCatalogCurrent: '当前',
+    modelCatalogModelsCount: '{count} 个模型',
+    modelCatalogChooseHint: '选择模型后应用于当前对话',
+
     // 通用
     save: '保存',
     cancel: '取消',
@@ -2147,6 +2164,23 @@ const translations: Record<LanguageType, Record<string, string>> = {
   },
   en: {
     ...TOKEN_DANCE_TRANSLATIONS.en,
+    openluxDescription: 'One API key, multiple model platforms',
+    openluxCatalogHint: 'Enter your API key to fetch chat models available to your account, or add a model manually.',
+    openluxDocs: 'Integration guide',
+    modelCatalogSearch: 'Search model name or ID',
+    modelCatalogGrouped: 'Grouped by model manufacturer',
+    modelCatalogOther: 'Other',
+    modelCatalogNoResults: 'No matching models',
+    modelCatalogDefault: 'Default model',
+    modelCatalogSetDefault: 'Set as default',
+    modelCatalogDefaultSelected: 'Default selected',
+    modelCatalogSelect: 'Select a model',
+    modelCatalogManage: 'Manage providers',
+    modelCatalogRefresh: 'Refresh models',
+    modelCatalogCurrent: 'Current',
+    modelCatalogModelsCount: '{count} models',
+    modelCatalogChooseHint: 'The selected model is used for the current conversation',
+
     // Common
     save: 'Save',
     cancel: 'Cancel',
